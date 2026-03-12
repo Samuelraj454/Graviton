@@ -1,6 +1,7 @@
 import { GameEngine } from './engine.js';
 import { UIManager } from './ui.js';
 import { Levels } from './levels.js';
+import { QAAgent } from './QAAgent.js';
 
 class Game {
     constructor() {
@@ -14,6 +15,7 @@ class Game {
         this.levels = new Levels();
         this.ui = new UIManager(this);
         this.engine = new GameEngine(this);
+        this.qa = new QAAgent(this);
 
         this.currentLevelIndex = 0;
         this.isPaused = true;
@@ -38,10 +40,10 @@ class Game {
         this.renderScale = scale;
     }
 
-    startMission() {
-        this.currentLevelIndex = 0;
-        localStorage.setItem('graviton_saved_level', 0);
-        this.loadLevel(0);
+    startMission(levelIndex = 0) {
+        this.currentLevelIndex = levelIndex;
+        localStorage.setItem('graviton_saved_level', levelIndex);
+        this.loadLevel(levelIndex);
         this.isPaused = false;
         this.ui.showGameUI();
     }
@@ -61,6 +63,13 @@ class Game {
         }
         this.currentLevelIndex = index;
         localStorage.setItem('graviton_saved_level', index);
+
+        // Update max unlocked level
+        const maxLevel = parseInt(localStorage.getItem('graviton_max_level')) || 1;
+        if (index + 1 > maxLevel) {
+            localStorage.setItem('graviton_max_level', index + 1);
+        }
+
         const levelData = this.levels.get(index);
         this.engine.loadLevel(levelData);
         this.ui.updateLevel(index + 1);
@@ -90,13 +99,13 @@ class Game {
         this.isPaused = true;
         const cores = this.engine.energyCores.filter(c => c.collected).length;
         this.ui.showLevelComplete(cores);
-        this.ui.submitScore('OPERATIVE', this.ui.score, this.currentLevelIndex + 1);
+        this.ui.submitScore(this.ui.score, this.currentLevelIndex + 1);
     }
 
     victory() {
         this.isPaused = true;
         this.ui.showScreen('victory-screen');
-        this.ui.submitScore('OPERATIVE', this.ui.score + 2000, this.levels.count);
+        this.ui.submitScore(this.ui.score + 2000, this.levels.count);
     }
 
     gameLoop(timestamp) {
@@ -111,9 +120,12 @@ class Game {
             this.ui.updateEnergy((p.neuralEnergy / p.maxEnergy) * 100);
             this.ui.updateGravityIndicator(p.gravityMode);
             this.ui.updateAbilityBadges(p, this.engine.isNeuralBurst);
-
+            this.ui.updateStats(dt);
             const coresGot = this.engine.energyCores.filter(c => c.collected).length;
             this.ui.updateCores(coresGot);
+
+            // ── QA Update ──
+            this.qa.update(dt);
         }
 
         this.engine.draw(this.ctx);

@@ -12,6 +12,9 @@ export class Levels {
         if (index < this.staticLevels.length) {
             return this.staticLevels[index];
         }
+        if (index === 499) {
+            return this.level500();
+        }
         return this.generateLevel(index);
     }
 
@@ -119,6 +122,7 @@ export class Levels {
         level.sentinels.push({ x: 600, y: 270 });
         level.energyCores.push({ x: 350, y: 350, width: 20, height: 20 });
         level.energyCores.push({ x: 750, y: 200, width: 20, height: 20 });
+        level.platforms.push({ x: 750, y: 250, width: 100, height: 20 }); // Landing platform
         level.portal.x = 800;
         level.portal.y = 150;
         return level;
@@ -142,8 +146,8 @@ export class Levels {
     level8() {
         const level = this.createBaseLevel(7, 100, 500);
         level.platforms.push({ x: 300, y: 550, width: 600, height: 20 });
-        for (let i = 0; i < 8; i++) {
-            level.spikes.push({ x: 320 + i * 70, y: 530, width: 30, height: 20 });
+        for (let i = 0; i < 7; i++) {
+            level.spikes.push({ x: 340 + i * 85, y: 530, width: 30, height: 20 });
         }
         level.movingPlatforms.push({ x: 250, y: 400, width: 100, height: 20, rangeX: 0, rangeY: -200, speed: 2 });
         level.platforms.push({ x: 550, y: 250, width: 50, height: 50 });
@@ -157,29 +161,36 @@ export class Levels {
     }
 
     level9() {
-        // FIXED: Level 9 Precision Maze - Adjusted laser positions/gaps
-        const level = this.createBaseLevel(8, 100, 100);
-        level.platforms[0].y = 150;
+        // REDESIGNED: Level 9 - G-FORCE MANIFOLD
+        const level = this.createBaseLevel(8, 200, 300);
+        level.platforms[0].x = 50;
+        level.platforms[0].y = 450;
+        level.platforms[0].width = 150;
 
-        level.platforms.push({ x: 250, y: 0, width: 40, height: 450 });
-        level.platforms.push({ x: 450, y: 200, width: 40, height: 500 });
-        level.platforms.push({ x: 650, y: 0, width: 40, height: 450 });
-        level.platforms.push({ x: 850, y: 200, width: 40, height: 500 });
+        // Challenge 1: The Dash-Shift Corridor
+        // Must dash horizontally across a gap then shift gravity to catch the next platform
+        level.platforms.push({ x: 300, y: 350, width: 200, height: 20 });
+        level.platforms.push({ x: 600, y: 150, width: 200, height: 20 }); // The "Catch" platform
 
-        // Reduced laser widths to creating passing gaps
-        level.lasers.push({ x: 290, y: 400, width: 120, height: 5 }); // Gap on right
-        level.lasers.push({ x: 530, y: 250, width: 120, height: 5 }); // Gap on left
-        level.lasers.push({ x: 690, y: 400, width: 120, height: 5 }); // Gap on right
+        // Challenge 2: The Heartbeat Laser (Risk vs Reward)
+        // High-frequency toggle laser guarding the extra core on the far left
+        level.energyCores.push({ x: 100, y: 150, width: 20, height: 20 }); // The Prize
+        level.lasers.push({ x: 50, y: 100, width: 10, height: 300, toggleRate: 1.5 }); // The Heartbeat Laser
 
-        level.sentinels.push({ x: 370, y: 250 });
-        level.sentinels.push({ x: 770, y: 250 });
+        // Central Pillar - redesigned to avoid "stuck" states (wider gaps)
+        level.platforms.push({ x: 1100, y: 200, width: 20, height: 400 }); // Right Wall Stop
 
-        level.energyCores.push({ x: 350, y: 150, width: 20, height: 20 });
-        level.energyCores.push({ x: 550, y: 550, width: 20, height: 20 });
-        level.energyCores.push({ x: 750, y: 150, width: 20, height: 20 });
+        // Challenge 3: Rotating Hazard Sync
+        level.platforms.push({ x: 585, y: 322, width: 30, height: 30 }); // Center Hub
+        level.rotatingLasers.push({ x: 600, y: 337, speed: 1.5, length: 300 });
 
-        level.portal.x = 1050;
-        level.portal.y = 500;
+        // Cores for progression
+        level.energyCores.push({ x: 700, y: 100, width: 20, height: 20 });
+        level.energyCores.push({ x: 1050, y: 400, width: 20, height: 20 });
+        level.energyCores.push({ x: 400, y: 550, width: 20, height: 20 });
+
+        level.portal.x = 1100;
+        level.portal.y = 50;
         return level;
     }
 
@@ -209,9 +220,8 @@ export class Levels {
 
     generateLevel(index) {
         const rng = new SeededRandom(index * 9999);
-        const difficulty = Math.min(1.0, (index - 10) / 490); // Scale from 0 to 1 over 490 levels
+        const difficulty = (index - 10) / 490; // 0 to 1
 
-        // Randomize spawn and portal
         const spawnX = rng.range(50, 200);
         const spawnY = rng.range(100, 500);
         const level = this.createBaseLevel(index, spawnX, spawnY);
@@ -220,82 +230,95 @@ export class Levels {
         const portalY = rng.range(100, 500);
         level.portal = { x: portalX, y: portalY, width: 60, height: 80 };
 
-        // Generate Platforms
-        const numPlatforms = 6 + Math.floor(difficulty * 10);
-        for (let i = 0; i < numPlatforms; i++) {
-            const px = rng.range(200, 1000);
-            const py = rng.range(100, 600);
-            const pw = rng.range(100, 300 - difficulty * 150);
-            const ph = 20;
-            level.platforms.push({ x: px, y: py, width: pw, height: ph });
+        const isW2 = index >= 20 && index < 100;
+        const isW3 = index >= 100 && index < 200;
+        const isW4 = index >= 200 && index < 350;
+        const isW5 = index >= 350;
 
-            // Chance for spikes on platforms
-            if (rng.chance(0.3 + difficulty * 0.4)) {
-                const sx = px + rng.range(0, pw - 30);
-                level.spikes.push({ x: sx, y: py - 20, width: 30, height: 20 });
+        // Platforms & Spikes
+        const numPlats = 8 + Math.floor(difficulty * 12);
+        for (let i = 0; i < numPlats; i++) {
+            const pw = rng.range(100, 300);
+            const px = rng.range(50, 1150 - pw);
+            const py = rng.range(100, 600);
+            level.platforms.push({ x: px, y: py, width: pw, height: 20 });
+            if (rng.chance(0.2 + (isW3 ? 0.3 : 0))) {
+                level.spikes.push({ x: px + rng.range(0, pw - 30), y: py - 20, width: 30, height: 20 });
             }
         }
 
-        // Moving Platforms
-        const numMoving = Math.floor(difficulty * 5);
-        for (let i = 0; i < numMoving; i++) {
+        // World 2: Moving Platforms
+        const numMoving = Math.floor(difficulty * (isW2 ? 10 : 4));
+        for (let j = 0; j < numMoving; j++) {
             level.movingPlatforms.push({
-                x: rng.range(200, 900),
-                y: rng.range(200, 500),
-                width: 100,
-                height: 20,
-                rangeX: rng.chance(0.5) ? rng.range(100, 300) : 0,
-                rangeY: rng.chance(0.5) ? rng.range(100, 300) : 0,
-                speed: 1 + difficulty * 3
+                x: rng.range(200, 900), y: rng.range(200, 500), width: 100, height: 20,
+                rangeX: (isW2 || rng.chance(0.4)) ? rng.range(100, 400) : 0,
+                rangeY: (isW2 || rng.chance(0.4)) ? rng.range(100, 400) : 0,
+                speed: 1 + difficulty * 2
             });
         }
 
-        // Lasers (Static)
-        const numLasers = Math.floor(difficulty * 4);
-        for (let i = 0; i < numLasers; i++) {
-            const isVert = rng.chance(0.5);
+        // World 3: Hazards
+        const numLasers = Math.floor(difficulty * (isW3 ? 8 : 2));
+        for (let k = 0; k < numLasers; k++) {
+            const isV = rng.chance(0.5);
             level.lasers.push({
-                x: rng.range(200, 1000),
-                y: rng.range(100, 500),
-                width: isVert ? 8 : rng.range(100, 400),
-                height: isVert ? rng.range(100, 400) : 8
+                x: rng.range(200, 1000), y: rng.range(100, 500),
+                width: isV ? 10 : rng.range(100, 400),
+                height: isV ? rng.range(100, 400) : 10,
+                toggleRate: isW3 ? rng.range(1, 4) : 0
             });
         }
 
-        // Rotating Lasers
-        const numRotating = Math.floor(difficulty * 3);
-        for (let i = 0; i < numRotating; i++) {
-            const rx = rng.range(300, 900);
-            const ry = rng.range(200, 500);
-            level.platforms.push({ x: rx - 10, y: ry - 10, width: 20, height: 20 }); // Small base
+        const numRotating = Math.floor(difficulty * (isW3 ? 4 : 1));
+        for (let l = 0; l < numRotating; l++) {
+            const rx = rng.range(300, 900); const ry = rng.range(200, 500);
+            level.platforms.push({ x: rx - 10, y: ry - 10, width: 20, height: 20 });
             level.rotatingLasers.push({
-                x: rx,
-                y: ry,
-                speed: (rng.chance(0.5) ? 1 : -1) * (1 + difficulty * 3),
-                length: 100 + difficulty * 150
+                x: rx, y: ry, speed: (rng.chance(0.5) ? 1 : -1) * (1 + difficulty * 1.5),
+                length: 100 + difficulty * 200
             });
         }
 
-        // Sentinels (ML AI)
-        const numSentinels = Math.floor(difficulty * 4);
-        for (let i = 0; i < numSentinels; i++) {
-            level.sentinels.push({
-                x: rng.range(200, 1000),
-                y: rng.range(100, 600)
-            });
+        // World 4: Gravity
+        level.blackHoles = [];
+        if (isW4 || isW5 || difficulty > 0.6) {
+            const nBH = isW4 ? 2 : 1;
+            for (let m = 0; m < nBH; m++) {
+                level.blackHoles.push({ x: rng.range(200, 1000), y: rng.range(100, 500), range: rng.range(200, 350) });
+            }
         }
 
-        // Energy Cores (Collectibles)
-        const numCores = 2 + Math.floor(difficulty * 3);
-        for (let i = 0; i < numCores; i++) {
-            level.energyCores.push({
-                x: rng.range(100, 1100),
-                y: rng.range(100, 600),
-                width: 20,
-                height: 20
-            });
+        level.gravityZones = [];
+        if (isW4 || isW5) {
+            for (let n = 0; n < 2; n++) {
+                level.gravityZones.push({
+                    x: rng.range(200, 1000), y: rng.range(100, 500), width: 160, height: 160,
+                    mode: ['up', 'down', 'left', 'right'][Math.floor(rng.next() * 4)]
+                });
+            }
         }
 
+        // Teleporters
+        level.teleporters = [];
+        if (isW5 && rng.chance(0.5)) {
+            level.teleporters.push({ id: 't1', targetId: 't2', x: 200, y: rng.range(100, 500), width: 40, height: 40 });
+            level.teleporters.push({ id: 't2', targetId: 't1', x: 900, y: rng.range(100, 500), width: 40, height: 40 });
+        }
+
+        // Collectibles
+        level.coins = [];
+        for (let p = 0; p < 15; p++) level.coins.push({ x: rng.range(100, 1100), y: rng.range(100, 600), width: 15, height: 15 });
+
+        level.energyCores = [];
+        for (let q = 0; q < 3; q++) level.energyCores.push({ x: rng.range(100, 1100), y: rng.range(100, 600), width: 20, height: 20 });
+
+        level.sentinels = [];
+        if (difficulty > 0.3) {
+            for (let r = 0; r < Math.floor(difficulty * 5); r++) level.sentinels.push({ x: rng.range(200, 1000), y: rng.range(100, 600) });
+        }
+
+        level.platforms.push({ x: portalX - 20, y: portalY + 90, width: 100, height: 20 });
         return level;
     }
 }
@@ -315,4 +338,39 @@ class SeededRandom {
         return this.next() < p;
     }
 }
+
+// Add Level 500
+Levels.prototype.level500 = function () {
+    const level = this.createBaseLevel(499, 550, 600);
+    level.spawn = { x: 550, y: 600 };
+    level.platforms = [
+        { x: 500, y: 650, width: 200, height: 20 }, // Start
+        { x: 0, y: 0, width: 20, height: 675 },
+        { x: 1180, y: 0, width: 20, height: 675 },
+        { x: 0, y: 0, width: 1200, height: 20 },
+        { x: 0, y: 655, width: 1200, height: 20 }
+    ];
+
+    // The Reactor Core
+    level.platforms.push({ x: 550, y: 300, width: 100, height: 100 });
+    level.rotatingLasers.push({ x: 600, y: 350, speed: 4, length: 500 });
+    level.rotatingLasers.push({ x: 600, y: 350, speed: -3, length: 400 });
+    level.rotatingLasers.push({ x: 600, y: 350, speed: 1.5, length: 600 });
+
+    // Final Cores
+    level.energyCores.push({ x: 100, y: 100, width: 30, height: 30 });
+    level.energyCores.push({ x: 1100, y: 100, width: 30, height: 30 });
+    level.energyCores.push({ x: 100, y: 550, width: 30, height: 30 });
+    level.energyCores.push({ x: 1100, y: 550, width: 30, height: 30 });
+
+    // Boss Sentinels
+    for (let i = 0; i < 8; i++) {
+        level.sentinels.push({ x: 100 + i * 150, y: 100 });
+    }
+
+    level.portal.x = 570;
+    level.portal.y = 50;
+    level.platforms.push({ x: 550, y: 150, width: 100, height: 20 }); // Portal Landing
+    return level;
+};
 

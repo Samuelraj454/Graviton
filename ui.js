@@ -11,7 +11,11 @@ export class UIManager {
             'death-screen': document.getElementById('death-screen'),
             'victory-screen': document.getElementById('victory-screen'),
             'leaderboard-screen': document.getElementById('leaderboard-screen'),
-            'settings-screen': document.getElementById('settings-screen')
+            'settings-screen': document.getElementById('settings-screen'),
+            'how-to-play-screen': document.getElementById('how-to-play-screen'),
+            'level-select-screen': document.getElementById('level-select-screen'),
+            'pause-screen': document.getElementById('pause-screen'),
+            'credits-screen': document.getElementById('credits-screen')
         };
 
         this.gameUI = document.getElementById('game-ui');
@@ -23,9 +27,26 @@ export class UIManager {
         this.badgeMagnetic = document.getElementById('badge-magnetic');
         this.badgeDash = document.getElementById('badge-dash');
         this.badgeBurst = document.getElementById('badge-burst');
+        this.livesDisplay = document.getElementById('lives-count');
+        this.coinsDisplayHUD = document.getElementById('coins-count');
+        this.timerDisplay = document.getElementById('level-timer');
         this.sectorStats = document.getElementById('sector-stats');
         this.totalLevelsNum = document.getElementById('total-levels');
+        this.startBtn = document.getElementById('start-btn');
         this.resumeBtn = document.getElementById('resume-btn');
+        this.authBtn = document.getElementById('auth-btn');
+        this.userDisplay = document.getElementById('user-display');
+        this.displayName = document.getElementById('display-name');
+        this.authMessage = document.getElementById('auth-message');
+
+        this.currentUser = JSON.parse(localStorage.getItem('graviton_user')) || null;
+        this.updateUserDisplay();
+        this.playerNameInput = document.getElementById('player-name');
+        this.mobileControls = document.getElementById('mobile-controls');
+
+        if (this.playerNameInput) {
+            this.playerNameInput.value = localStorage.getItem('graviton_player_name') || '';
+        }
 
         this.checkSaveGame();
 
@@ -34,21 +55,97 @@ export class UIManager {
         }
 
         this.initEventListeners();
+        this.initMobileControls();
+    }
+
+    initMobileControls() {
+        if (!this.mobileControls) return;
+
+        const bindBtn = (id, key, action = null) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const startHandler = (e) => {
+                e.preventDefault();
+                this.game.engine.keys[key] = true;
+                if (action) action();
+            };
+            const endHandler = (e) => {
+                e.preventDefault();
+                this.game.engine.keys[key] = false;
+            };
+
+            btn.addEventListener('touchstart', startHandler);
+            btn.addEventListener('touchend', endHandler);
+            btn.addEventListener('mousedown', startHandler);
+            btn.addEventListener('mouseup', endHandler);
+            btn.addEventListener('mouseleave', endHandler);
+        };
+
+        // Movement keys
+        bindBtn('v-a', 'a');
+        bindBtn('v-d', 'd');
+        bindBtn('v-w', 'w');
+        bindBtn('v-s', 's');
+
+        // Gravity flips
+        bindBtn('v-up', 'arrowup', () => this.game.engine.setGravity('up'));
+        bindBtn('v-down', 'arrowdown', () => this.game.engine.setGravity('down'));
+        bindBtn('v-left', 'arrowleft', () => this.game.engine.setGravity('left'));
+        bindBtn('v-right', 'arrowright', () => this.game.engine.setGravity('right'));
+
+        // Action buttons
+        bindBtn('v-jump', ' ', () => this.game.engine.jump());
+        bindBtn('v-dash', 'z', () => this.game.engine.dash());
+        bindBtn('v-boots', 'm', () => this.game.engine.toggleMagnetic());
+
+        const slowBtn = document.getElementById('v-slow');
+        if (slowBtn) {
+            slowBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.game.engine.toggleNeuralBurst(true);
+            });
+            slowBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.game.engine.toggleNeuralBurst(false);
+            });
+            slowBtn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                this.game.engine.toggleNeuralBurst(true);
+            });
+            slowBtn.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                this.game.engine.toggleNeuralBurst(false);
+            });
+        }
     }
 
     initEventListeners() {
-        document.getElementById('start-btn').onclick = () => this.game.startMission();
-        if (this.resumeBtn) {
-            this.resumeBtn.onclick = () => this.game.resumeMission();
+        if (this.startBtn) {
+            this.startBtn.onclick = () => {
+                this.game.engine.sounds.resume();
+                this.game.startMission();
+            };
         }
-        document.getElementById('next-btn').onclick = () => this.game.nextLevel();
+        if (this.resumeBtn) {
+            this.resumeBtn.onclick = () => {
+                this.game.engine.sounds.resume();
+                this.game.resumeMission();
+            };
+        }
+        document.getElementById('next-btn').onclick = () => {
+            this.game.engine.sounds.resume();
+            this.game.nextLevel();
+        };
         document.getElementById('retry-btn').onclick = () => {
+            this.game.engine.sounds.resume();
             this.score = 0;
             this.coresCollected = 0;
             this.game.restartLevel();
         };
         document.getElementById('restart-btn').onclick = () => this.game.restartLevel();
         document.getElementById('play-again-btn').onclick = () => {
+            this.game.engine.sounds.resume();
             this.score = 0;
             this.coresCollected = 0;
             this.game.startMission();
@@ -65,6 +162,47 @@ export class UIManager {
 
         document.getElementById('leaderboard-btn').onclick = () => this.showLeaderboard();
         document.getElementById('close-leaderboard-btn').onclick = () => this.showScreen('start-screen');
+
+        // New screens back buttons
+        const htpBtn = document.getElementById('how-to-play-btn');
+        if (htpBtn) htpBtn.onclick = () => this.showScreen('how-to-play-screen');
+        if (document.getElementById('how-to-back-btn')) {
+            document.getElementById('how-to-back-btn').onclick = () => this.showScreen('start-screen');
+        }
+
+        const lsBtn = document.getElementById('level-select-btn');
+        if (lsBtn) lsBtn.onclick = () => this.showLevelSelect();
+        if (document.getElementById('level-back-btn')) {
+            document.getElementById('level-back-btn').onclick = () => this.showScreen('start-screen');
+        }
+
+        const creditsBtn = document.getElementById('credits-btn');
+        if (creditsBtn) creditsBtn.onclick = () => this.showScreen('credits-screen');
+        const creditsBackBtn = document.getElementById('credits-back-btn');
+        if (creditsBackBtn) creditsBackBtn.onclick = () => this.showScreen('start-screen');
+
+        // Pause Menu Listeners
+        const prBtn = document.getElementById('pause-resume-btn');
+        if (prBtn) prBtn.onclick = () => {
+            this.game.isPaused = false;
+            this.showGameUI();
+        };
+        const restartPauseBtn = document.getElementById('pause-restart-btn');
+        if (restartPauseBtn) restartPauseBtn.onclick = () => {
+            this.game.isPaused = false;
+            this.game.restartLevel();
+        };
+        const homePauseBtn = document.getElementById('pause-home-btn');
+        if (homePauseBtn) homePauseBtn.onclick = () => {
+            this.game.isPaused = true;
+            this.showScreen('start-screen');
+        };
+
+        const homeDeathBtn = document.getElementById('death-home-btn');
+        if (homeDeathBtn) homeDeathBtn.onclick = () => {
+            this.game.isPaused = true;
+            this.showScreen('start-screen');
+        };
 
         // Settings
         document.getElementById('settings-btn').onclick = () => this.showScreen('settings-screen');
@@ -88,13 +226,63 @@ export class UIManager {
             };
         }
 
+        if (this.authBtn) this.authBtn.addEventListener('click', () => {
+            this.game.engine.sounds.resume();
+            if (this.currentUser) {
+                // Logout
+                this.currentUser = null;
+                localStorage.removeItem('graviton_user');
+                this.updateUserDisplay();
+                this.showScreen('start-screen');
+            } else {
+                // Show login/register screen
+                this.showScreen('auth-screen');
+            }
+        });
+
+        if (document.getElementById('auth-back-btn')) {
+            document.getElementById('auth-back-btn').addEventListener('click', () => this.showScreen('start-screen'));
+        }
+
+        if (document.getElementById('login-btn')) {
+            document.getElementById('login-btn').addEventListener('click', () => this.handleAuth('login'));
+        }
+
+        if (document.getElementById('register-btn')) {
+            document.getElementById('register-btn').addEventListener('click', () => this.handleAuth('register'));
+        }
+
+        const fsBtn = document.getElementById('fullscreen-btn');
+        if (fsBtn) {
+            fsBtn.onclick = () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                    fsBtn.textContent = 'EXIT FULLSCREEN';
+                } else {
+                    document.exitFullscreen();
+                    fsBtn.textContent = 'ENTER FULLSCREEN';
+                }
+            };
+        }
+
         window.addEventListener('keydown', (e) => {
             const k = e.key.toLowerCase();
             if (k === 'r' && !this.game.isPaused) this.game.restartLevel();
             if (k === 'l' && this.game.isPaused) this.showLeaderboard();
-            if (k === 'escape' && !this.game.isPaused) {
-                this.game.isPaused = true;
-                this.showScreen('death-screen');
+            if (k === 'escape') {
+                if (!this.game.isPaused && this.gameUI && !this.gameUI.classList.contains('hidden')) {
+                    this.game.isPaused = true;
+                    this.showScreen('pause-screen');
+                } else if (this.game.isPaused && this.screens['pause-screen'] && !this.screens['pause-screen'].classList.contains('hidden')) {
+                    this.game.isPaused = false;
+                    this.showGameUI();
+                }
+            }
+            if (k === 'q') {
+                if (this.game.qa.active) this.game.qa.stop();
+                else this.game.qa.start('expert');
             }
         });
     }
@@ -109,17 +297,32 @@ export class UIManager {
     hideScreens() {
         Object.values(this.screens).forEach(s => { if (s) s.classList.add('hidden'); });
         if (this.gameUI) this.gameUI.classList.add('hidden');
+        if (this.mobileControls) this.mobileControls.classList.add('hidden');
     }
 
     showGameUI() {
         this.hideScreens();
         this.gameUI.classList.remove('hidden');
+        if (this.mobileControls && (('ontouchstart' in window) || navigator.maxTouchPoints > 0)) {
+            this.mobileControls.classList.remove('hidden');
+        }
     }
 
     updateLevel(num) {
         if (this.levelNum) this.levelNum.textContent = num.toString().padStart(2, '0');
         this.coresCollected = 0;
         this.updateCores(0);
+        if (this.livesDisplay) this.livesDisplay.textContent = this.game.engine.player.lives;
+    }
+
+    updateStats(dt) {
+        const p = this.game.engine.player;
+        if (this.livesDisplay) this.livesDisplay.textContent = p.lives;
+        if (this.coinsDisplayHUD) this.coinsDisplayHUD.textContent = p.coins;
+
+        const mins = Math.floor(p.levelTimer / 60);
+        const secs = Math.floor(p.levelTimer % 60);
+        if (this.timerDisplay) this.timerDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
     updateEnergy(percent) {
@@ -150,6 +353,51 @@ export class UIManager {
         this.score += points;
     }
 
+    showLevelSelect() {
+        this.filterLevels('w1');
+    }
+
+    filterLevels(worldId) {
+        this.showScreen('level-select-screen');
+
+        // Update tab styles
+        const tabs = document.querySelectorAll('.world-tabs .badge');
+        tabs.forEach(t => {
+            t.classList.remove('active');
+            if (t.textContent.toLowerCase().includes(worldId)) t.classList.add('active');
+        });
+
+        const grid = document.getElementById('level-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const maxUnlocked = parseInt(localStorage.getItem('graviton_max_level')) || 1;
+
+        const worldRanges = {
+            'w1': { start: 1, end: 20 },
+            'w2': { start: 21, end: 100 },
+            'w3': { start: 101, end: 200 },
+            'w4': { start: 201, end: 350 },
+            'w5': { start: 351, end: 500 }
+        };
+
+        const range = worldRanges[worldId] || worldRanges['w1'];
+
+        for (let i = range.start; i <= range.end; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'level-btn';
+            if (i > maxUnlocked) btn.classList.add('locked');
+
+            btn.innerHTML = `SECTOR ${i.toString().padStart(2, '0')}`;
+            if (i <= maxUnlocked) {
+                btn.onclick = () => {
+                    this.game.startMission(i - 1);
+                };
+            }
+            grid.appendChild(btn);
+        }
+    }
+
     async showLeaderboard() {
         this.showScreen('leaderboard-screen');
         this.leaderboardList.innerHTML = '<div class="leaderboard-item header"><span>OPERATIVE</span><span>SCORE</span><span>SECTOR</span></div>';
@@ -168,7 +416,14 @@ export class UIManager {
         }
     }
 
-    async submitScore(name, score, sector) {
+    async submitScore(score, sector) {
+        let name = 'OPERATIVE';
+        if (this.currentUser) {
+            name = this.currentUser.username;
+        } else {
+            name = this.playerNameInput?.value || 'OPERATIVE';
+        }
+        localStorage.setItem('graviton_player_name', name);
         try {
             await fetch(`${this.apiBase}/score`, {
                 method: 'POST',
@@ -179,8 +434,23 @@ export class UIManager {
     }
 
     showLevelComplete(coresCount) {
+        const p = this.game.engine.player;
+        const time = p.levelTimer;
+
+        // Star Logic (Time based)
+        let stars = 1;
+        if (time < 30) stars = 3;
+        else if (time < 60) stars = 2;
+
         if (this.sectorStats) {
-            this.sectorStats.textContent = `ENERGY CORES RECOVERED: ${coresCount}`;
+            this.sectorStats.innerHTML = `
+                <div style="font-size:1.5rem; color:#ffcc00; margin-bottom:1rem;">
+                    ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}
+                </div>
+                DATA CORES: ${coresCount}<br>
+                COINS: ${p.coins}<br>
+                TIME: ${Math.floor(time)}s
+            `;
         }
         this.showScreen('complete-screen');
     }
@@ -191,6 +461,54 @@ export class UIManager {
             if (this.resumeBtn) this.resumeBtn.classList.remove('hidden');
         } else {
             if (this.resumeBtn) this.resumeBtn.classList.add('hidden');
+        }
+    }
+
+    updateUserDisplay() {
+        if (this.currentUser) {
+            if (this.userDisplay) this.userDisplay.classList.remove('hidden');
+            if (this.displayName) this.displayName.textContent = this.currentUser.username;
+            if (this.authBtn) this.authBtn.textContent = 'LOGOUT';
+        } else {
+            if (this.userDisplay) this.userDisplay.classList.add('hidden');
+            if (this.authBtn) this.authBtn.textContent = 'LOGIN / REGISTER';
+        }
+    }
+
+    async handleAuth(type) {
+        const username = document.getElementById('auth-username').value;
+        const password = document.getElementById('auth-password').value;
+        const url = type === 'login' ? 'http://localhost:5000/api/login' : 'http://localhost:5000/api/register';
+
+        if (!username || !password) {
+            this.authMessage.textContent = 'MISSING CREDENTIALS';
+            return;
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                if (type === 'login') {
+                    this.currentUser = data;
+                    localStorage.setItem('graviton_user', JSON.stringify(data));
+                    this.updateUserDisplay();
+                    this.showScreen('start-screen');
+                } else {
+                    this.authMessage.textContent = 'REGISTRATION COMPLETE. PLEASE LOGIN.';
+                    this.authMessage.style.color = '#00f2ff';
+                }
+            } else {
+                this.authMessage.textContent = data.error || 'UPLINK FAILED';
+                this.authMessage.style.color = '#ff0055';
+            }
+        } catch (err) {
+            this.authMessage.textContent = 'SERVER OFFLINE';
         }
     }
 }

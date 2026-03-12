@@ -17,6 +17,12 @@ export class SoundManager {
         this.startMusic();
     }
 
+    resume() {
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
     setVolume(value) {
         this.volume = value;
         if (!this.isMuted) {

@@ -28,7 +28,10 @@ export class GameEngine {
             dashCooldown: 0,
             boostEnergy: 100,
             isDashing: false,
-            isMagnetic: false
+            isMagnetic: false,
+            lives: 3,
+            coins: 0,
+            levelTimer: 0
         };
 
         this.camera = {
@@ -57,7 +60,11 @@ export class GameEngine {
         this.movingPlatforms = [];
         this.sentinels = [];
         this.ambientSparks = [];
-        
+        this.blackHoles = [];
+        this.gravityZones = [];
+        this.teleporters = [];
+        this.coins = [];
+
         // Particle Object Pool
         this.particlePool = Array.from({ length: 1000 }, () => ({ active: false }));
 
@@ -70,7 +77,7 @@ export class GameEngine {
         this.player.stretch = 1.0;
         this.player.frameTimer = 0;
         this.player.currentFrame = 0;
-        
+
         this.initInput();
     }
 
@@ -120,6 +127,23 @@ export class GameEngine {
         const gravAngles = { down: 0, up: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
         this.player.targetGravityAngle = gravAngles[mode];
 
+        // --- PROACTIVE COLLISION RESOLVE (Hitbox Snap) ---
+        // If the new gravity mode causes an immediate overlap with a wall (common with rotation)
+        // we proactively push the player out by a few pixels in the opposite direction.
+        this.platforms.forEach(p => {
+            if (this.rectIntersect(this.player, p)) {
+                const overlap = this.getOverlap(this.player, p);
+                const pushDir = {
+                    down: { x: 0, y: -overlap },
+                    up: { x: 0, y: overlap },
+                    left: { x: overlap, y: 0 },
+                    right: { x: -overlap, y: 0 }
+                };
+                this.player.x += pushDir[mode].x;
+                this.player.y += pushDir[mode].y;
+            }
+        });
+
         // Glow burst and particles
         this.createParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, '#00f2ff', 30, 'burst');
     }
@@ -148,7 +172,7 @@ export class GameEngine {
             this.player.dashCooldown = 0.5;
             this.player.neuralEnergy -= 20;
             this.sounds.playBoost();
-            
+
             this.camera.shake = 10;
             this.player.squash = 0.5;
             this.player.stretch = 1.8;
@@ -214,6 +238,14 @@ export class GameEngine {
             state: 'patrol'
         }));
 
+        this.blackHoles = levelData.blackHoles || [];
+        this.gravityZones = levelData.gravityZones || [];
+        this.teleporters = levelData.teleporters || [];
+        this.coins = (levelData.coins || []).map(c => ({ ...c, collected: false }));
+
+        this.player.levelTimer = 0;
+        this.player.coins = 0;
+
         this.debris = [];
         for (let i = 0; i < 5; i++) {
             this.debris.push({
@@ -242,9 +274,7 @@ export class GameEngine {
         dt *= this.timeScale;
 
         // --- 1. Physics & Movement ---
-        // Basic horizontal/vertical controls based on current gravity
         const acc = this.player.speed;
-
         if (!this.player.isDashing && !this.player.isMagnetic) {
             if (this.player.gravityMode === 'down' || this.player.gravityMode === 'up') {
                 if (this.keys['a']) this.player.vx -= acc * dt;
@@ -257,7 +287,6 @@ export class GameEngine {
             }
         }
 
-        // Apply Gravity
         const g = this.gravityConstant;
         switch (this.player.gravityMode) {
             case 'down': this.player.vy += g * dt; break;
@@ -266,85 +295,56 @@ export class GameEngine {
             case 'right': this.player.vx += g * dt; break;
         }
 
-        // Clamp Speed
         const maxV = 800;
         this.player.vx = Math.max(-maxV, Math.min(maxV, this.player.vx));
         this.player.vy = Math.max(-maxV, Math.min(maxV, this.player.vy));
-
-        // Magnetic friction
         if (this.player.isMagnetic && this.player.onGround) {
-            this.player.vx *= 0.5;
-            this.player.vy *= 0.5;
+            this.player.vx *= 0.5; this.player.vy *= 0.5;
         }
 
-        // --- 2. Collision & Resolution ---
         this.player.x += this.player.vx * dt;
         this.checkCollisions(dt, 'horizontal');
-
         this.player.y += this.player.vy * dt;
         this.player.onGround = false;
         this.checkCollisions(dt, 'vertical');
 
-        // --- 3. Visuals ---
-        // Smooth astronaut sprite rotation (does NOT move the world)
+        // --- 2. Visuals & Environment ---
         this.player.gravityAngle += (this.player.targetGravityAngle - this.player.gravityAngle) * 0.15;
-
-        // Player Trail
         if (this.player.isDashing || this.isNeuralBurst) {
             this.player.trail.unshift({ x: this.player.x, y: this.player.y });
             if (this.player.trail.length > 15) this.player.trail.pop();
-        } else {
-            if (this.player.trail.length > 0) this.player.trail.pop();
-        }
+        } else if (this.player.trail.length > 0) this.player.trail.pop();
 
-        // Particles
         this.particlePool.forEach(p => {
             if (!p.active) return;
-            p.x += p.vx * dt;
-            p.y += p.vy * dt;
+            p.x += p.vx * dt; p.y += p.vy * dt;
             if (p.hasGravity) p.vy += this.gravityConstant * 0.5 * dt;
-            p.rotation += p.rotSpeed * dt;
-            p.size += p.sizeScaling * dt;
-            p.size = Math.max(0.1, p.size);
-            p.vx *= p.friction;
-            p.vy *= p.friction;
-            p.life -= dt;
-            if (p.life <= 0) p.active = false;
+            p.rotation += p.rotSpeed * dt; p.size += p.sizeScaling * dt;
+            p.size = Math.max(0.1, p.size); p.vx *= p.friction; p.vy *= p.friction;
+            p.life -= dt; if (p.life <= 0) p.active = false;
         });
 
-        // Player squash/stretch interpolation
         this.player.squash += (1 - this.player.squash) * 15 * dt;
         this.player.stretch += (1 - this.player.stretch) * 15 * dt;
 
-        // Camera follow
         this.camera.targetX = this.player.x + this.player.width / 2 - this.game.targetWidth / 2;
         this.camera.targetY = this.player.y + this.player.height / 2 - this.game.targetHeight / 2;
-        this.camera.x += (this.camera.targetX - this.camera.x) * 5 * dt;
-        this.camera.y += (this.camera.targetY - this.camera.y) * 5 * dt;
-        
-        // Clamp camera 
-        this.camera.x = Math.max(-500, Math.min(this.camera.x, 2000));
-        this.camera.y = Math.max(-500, Math.min(this.camera.y, 2000));
+        this.camera.x += (this.camera.targetX - this.camera.x) * 4 * dt;
+        this.camera.y += (this.camera.targetY - this.camera.y) * 4 * dt;
 
-        // Debris movement (Inertia)
         this.debris.forEach(d => {
-            d.x += d.vx * dt;
-            d.y += d.vy * dt;
-            d.angle += d.rotation;
+            d.x += d.vx * dt; d.y += d.vy * dt; d.angle += d.rotation;
             if (d.x < -100) d.x = this.game.targetWidth + 100;
             if (d.x > this.game.targetWidth + 100) d.x = -100;
             if (d.y < -100) d.y = this.game.targetHeight + 100;
             if (d.y > this.game.targetHeight + 100) d.y = -100;
         });
 
-        // Moving Platforms
         this.movingPlatforms.forEach(p => {
             p.timer += dt * p.speed;
-            const prevX = p.currentX;
-            const prevY = p.currentY;
+            const prevX = p.currentX; const prevY = p.currentY;
             p.currentX = p.x + Math.cos(p.timer) * p.rangeX;
             p.currentY = p.y + Math.sin(p.timer) * p.rangeY;
-
             if (this.isPlayerOnPlatform(p)) {
                 this.player.x += (p.currentX - prevX);
                 this.player.y += (p.currentY - prevY);
@@ -352,87 +352,105 @@ export class GameEngine {
             }
         });
 
-        // --- 4. Hazards & Collectibles ---
-        // Energy Cores
+        // --- 3. Hazards & Gameplay ---
+        let died = this.checkSpikeCollisions() || this.isOutOfBounds();
+        const px = this.player.x + this.player.width / 2;
+        const py = this.player.y + this.player.height / 2;
+
         this.energyCores.forEach(c => {
             if (!c.collected && this.rectIntersect(this.player, c)) {
                 c.collected = true;
                 this.player.neuralEnergy = Math.min(this.player.maxEnergy, this.player.neuralEnergy + 30);
                 this.sounds.playCollect();
-                this.createParticles(c.x + c.width / 2, c.y + c.height / 2, '#00f2ff', 10);
             }
         });
 
-        // Death Checks
-        let died = this.checkSpikeCollisions() || this.isOutOfBounds();
-
-        // Static Lasers
-        this.lasers.forEach(l => {
-            if (this.rectIntersect(this.player, l)) died = true;
+        this.coins.forEach(c => {
+            if (!c.collected && this.rectIntersect(this.player, c)) {
+                c.collected = true; this.player.coins++; this.sounds.playCollect();
+                this.createParticles(c.x + c.width / 2, c.y + c.height / 2, '#ffcc00', 10);
+            }
         });
 
-        // Rotating Lasers
-        const px = this.player.x + this.player.width / 2;
-        const py = this.player.y + this.player.height / 2;
+        this.lasers.forEach(l => {
+            if (l.toggleRate) l.isVisible = (Math.floor(Date.now() / (1000 * l.toggleRate)) % 2 === 0);
+            else l.isVisible = true;
+            if (l.isVisible && this.rectIntersect(this.player, l)) died = true;
+        });
+
         this.rotatingLasers.forEach(r => {
             r.angle += r.speed * dt;
-            // Project the laser as a line and check distance from player center
-            const dx = Math.cos(r.angle);
-            const dy = Math.sin(r.angle);
-            // Vector from pivot to player
-            const tox = px - r.x;
-            const toy = py - r.y;
-            // Perpendicular distance from player to the laser line
-            const perp = Math.abs(tox * dy - toy * dx);
-            const proj = tox * dx + toy * dy;
+            const dx = Math.cos(r.angle); const dy = Math.sin(r.angle);
+            const tox = px - r.x; const toy = py - r.y;
+            const perp = Math.abs(tox * dy - toy * dx); const proj = tox * dx + toy * dy;
             if (perp < 14 && proj > 0 && proj < r.length) died = true;
+        });
+
+        this.blackHoles.forEach(bh => {
+            const dx = bh.x - px; const dy = bh.y - py;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bh.range) {
+                const force = (1 - dist / bh.range) * 2000;
+                this.player.vx += (dx / dist) * force * dt;
+                this.player.vy += (dy / dist) * force * dt;
+                if (dist < 20) died = true;
+            }
+        });
+
+        this.gravityZones.forEach(gz => {
+            if (this.rectIntersect(this.player, gz)) this.setGravity(gz.mode);
+        });
+
+        this.teleporters.forEach(t => {
+            if (this.rectIntersect(this.player, t)) {
+                if (!t.cooldown) {
+                    const target = this.teleporters.find(other => other.id === t.targetId);
+                    if (target) {
+                        this.player.x = target.x; this.player.y = target.y;
+                        target.cooldown = 1.0; this.sounds.playBoost();
+                        this.createParticles(t.x, t.y, '#00f2ff', 20, 'burst');
+                        this.createParticles(target.x, target.y, '#00f2ff', 20, 'burst');
+                    }
+                }
+            }
+            if (t.cooldown > 0) t.cooldown -= dt;
+        });
+
+        this.sentinels.forEach(s => {
+            const dist = Math.sqrt((this.player.x - s.currentX) ** 2 + (this.player.y - s.currentY) ** 2);
+            if (dist < 400) { s.state = 'track'; this.sentinelBrain.update(s); }
+            else { s.state = 'patrol'; s.vx = Math.sin(Date.now() / 1000) * 50; s.vy = Math.cos(Date.now() / 1000) * 20; }
+            s.currentX += s.vx * dt; s.currentY += s.vy * dt;
+            if (this.rectIntersect(this.player, { x: s.currentX - 15, y: s.currentY - 15, width: 30, height: 30 })) died = true;
         });
 
         if (died) {
             this.sounds.playDeath();
             this.createParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, '#ff0055', 40);
-            this.game.onDeath();
+            this.player.lives--;
+            if (this.player.lives <= 0) {
+                this.game.onDeath();
+            } else {
+                const currentLevel = this.game.levels.get(this.game.currentLevelIndex);
+                this.player.x = currentLevel.spawn.x; this.player.y = currentLevel.spawn.y;
+                this.player.vx = 0; this.player.vy = 0; this.flashEffect = 0.5;
+            }
         }
 
-        // Win (Destiny) - Require all gems/cores to be collected
         if (this.checkPortalCollision()) {
             const allCoresCollected = this.energyCores.every(c => c.collected);
-            if (allCoresCollected || this.energyCores.length === 0) {
-                this.game.onLevelComplete();
-            }
+            if (allCoresCollected || this.energyCores.length === 0) this.game.onLevelComplete();
         }
 
-        // Sentinels (ML)
-        this.sentinels.forEach(s => {
-            const dist = Math.sqrt((this.player.x - s.currentX) ** 2 + (this.player.y - s.currentY) ** 2);
-            if (dist < 400) {
-                s.state = 'track';
-                this.sentinelBrain.update(s);
-            } else {
-                s.state = 'patrol';
-                s.vx = Math.sin(Date.now() / 1000) * 50;
-                s.vy = Math.cos(Date.now() / 1000) * 20;
-            }
-            s.currentX += s.vx * dt;
-            s.currentY += s.vy * dt;
-            if (this.rectIntersect(this.player, { x: s.currentX - 15, y: s.currentY - 15, width: 30, height: 30 })) {
-                this.sounds.playDeath();
-                this.game.onDeath();
-            }
-        });
-
-        // Decay Cooldowns
+        // --- 4. Timers & Cooldowns ---
+        this.player.levelTimer += dt;
         if (this.player.dashCooldown > 0) this.player.dashCooldown -= dt;
         if (this.camera.shake > 0) this.camera.shake -= dt * 30;
         if (this.flashEffect > 0) this.flashEffect -= dt * 2;
 
-        // Neural Energy
         if (this.isNeuralBurst) {
             this.player.neuralEnergy -= dt * 50;
-            if (this.player.neuralEnergy <= 0) {
-                this.player.neuralEnergy = 0;
-                this.toggleNeuralBurst(false);
-            }
+            if (this.player.neuralEnergy <= 0) { this.player.neuralEnergy = 0; this.toggleNeuralBurst(false); }
         } else {
             this.player.neuralEnergy = Math.min(this.player.maxEnergy, this.player.neuralEnergy + (dt / this.timeScale) * 10);
         }
@@ -509,6 +527,12 @@ export class GameEngine {
             r1.y + r1.height > r2.y;
     }
 
+    getOverlap(r1, r2) {
+        const overlapX = Math.max(0, Math.min(r1.x + r1.width, r2.x + r2.width) - Math.max(r1.x, r2.x));
+        const overlapY = Math.max(0, Math.min(r1.y + r1.height, r2.y + r2.height) - Math.max(r1.y, r2.y));
+        return Math.min(overlapX, overlapY);
+    }
+
     checkSpikeCollisions() {
         return this.spikes.some(s => this.rectIntersect(this.player, s));
     }
@@ -524,11 +548,17 @@ export class GameEngine {
 
     draw(ctx) {
         ctx.save();
-        
+
         // Base background (no camera pan)
         ctx.fillStyle = '#050510';
         ctx.fillRect(0, 0, this.game.targetWidth, this.game.targetHeight);
-        
+
+        // Energy Glitch
+        if (this.player.neuralEnergy < 30 && Math.random() < 0.1) {
+            ctx.fillStyle = `rgba(255, 0, 85, ${0.1 * Math.random()})`;
+            ctx.fillRect(0, 0, this.game.targetWidth, this.game.targetHeight);
+        }
+
         // Parallax Stars Layer 1
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
         this.ambientSparks.forEach((s, idx) => {
@@ -612,8 +642,10 @@ export class GameEngine {
 
         this.spikes.forEach(s => this.drawSpike(ctx, s));
 
-        // Static Lasers
+        // Static & Toggled Lasers
         this.lasers.forEach(l => {
+            if (l.isVisible === false) return; // Skip if in "off" state
+
             ctx.shadowBlur = 20;
             ctx.shadowColor = '#ff0055';
             ctx.fillStyle = 'rgba(255, 0, 85, 0.85)';
@@ -646,6 +678,10 @@ export class GameEngine {
             ctx.shadowBlur = 0;
         });
 
+        // Global Glow for Neon Elements
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(0, 242, 255, 0.4)';
+
         // Energy Cores
         this.energyCores.forEach(c => {
             if (c.collected) return;
@@ -659,6 +695,40 @@ export class GameEngine {
             ctx.fillRect(-10, -10, 20, 20);
             ctx.strokeRect(-12, -12, 24, 24);
             ctx.restore();
+        });
+
+        // Coins
+        this.coins.forEach(c => {
+            if (c.collected) return;
+            ctx.save(); ctx.translate(c.x + c.width / 2, c.y + c.height / 2);
+            ctx.rotate(Date.now() / 400); ctx.fillStyle = '#ffcc00'; ctx.shadowBlur = 10; ctx.shadowColor = '#ffcc00';
+            ctx.fillRect(-c.width / 2, -c.height / 2, c.width, c.height); ctx.restore();
+        });
+
+        // Black Holes
+        this.blackHoles.forEach(bh => {
+            ctx.save(); ctx.translate(bh.x, bh.y);
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, bh.range);
+            grad.addColorStop(0, 'rgba(0,0,0,1)'); grad.addColorStop(0.2, 'rgba(50,0,100,0.5)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, bh.range, 0, Math.PI * 2); ctx.fill();
+            ctx.rotate(Date.now() / 1000); ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, 20 + Math.sin(Date.now() / 200) * 5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        });
+
+        // Gravity Zones
+        this.gravityZones.forEach(gz => {
+            ctx.fillStyle = 'rgba(0, 242, 255, 0.05)'; ctx.fillRect(gz.x, gz.y, gz.width, gz.height);
+            ctx.strokeStyle = 'rgba(0, 242, 255, 0.2)'; ctx.setLineDash([5, 5]); ctx.strokeRect(gz.x, gz.y, gz.width, gz.height);
+            ctx.setLineDash([]); ctx.fillStyle = 'rgba(0, 242, 255, 0.3)'; ctx.font = '10px Arial';
+            ctx.fillText(gz.mode.toUpperCase() + ' G', gz.x + 5, gz.y + 15);
+        });
+
+        // Teleporters
+        this.teleporters.forEach(t => {
+            ctx.save(); ctx.translate(t.x + t.width / 2, t.y + t.height / 2);
+            ctx.rotate(Date.now() / 500); ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 2;
+            ctx.strokeRect(-t.width / 2, -t.height / 2, t.width, t.height);
+            ctx.fillStyle = 'rgba(0, 242, 255, 0.2)'; ctx.fillRect(-t.width / 4, -t.height / 4, t.width / 2, t.height / 2); ctx.restore();
         });
 
         // 5. Portals & Sentinels
@@ -734,7 +804,7 @@ export class GameEngine {
     drawAstronaut(ctx, x, y, w, h) {
         ctx.save();
         ctx.translate(x + w / 2, y + h / 2);
-        
+
         ctx.rotate(this.player.gravityAngle);
 
         // Apply Squash and Stretch locally
@@ -816,23 +886,23 @@ export class GameEngine {
                 p.x = x; p.y = y;
                 p.color = color;
                 p.type = type;
-                
+
                 const speed = type === 'burst' ? 600 : type === 'dash' ? 400 : 200;
                 const angle = Math.random() * Math.PI * 2;
                 p.vx = Math.cos(angle) * Math.random() * speed;
                 p.vy = Math.sin(angle) * Math.random() * speed;
-                
+
                 p.hasGravity = type === 'smoke';
                 p.friction = type === 'smoke' ? 0.98 : 0.92;
                 p.rotation = Math.random() * Math.PI * 2;
                 p.rotSpeed = (Math.random() - 0.5) * 10;
-                
+
                 p.maxLife = type === 'burst' ? 0.5 : type === 'dash' ? 0.4 : 1.0;
                 p.life = p.maxLife * (0.8 + Math.random() * 0.4);
-                
+
                 p.sizeScaling = type === 'smoke' ? 5 : type === 'burst' ? -10 : -2;
                 p.size = type === 'smoke' ? Math.random() * 5 + 5 : Math.random() * 4 + 2;
-                
+
                 spawned++;
             }
         }
