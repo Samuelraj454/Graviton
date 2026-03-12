@@ -72,7 +72,7 @@ canvas {
     align-items: center;
 }
 
-/* ───/* Auth Screen */
+/* ─── Auth Screen ────────────────────────────────────────── */
 .auth-box {
     display: flex;
     flex-direction: column;

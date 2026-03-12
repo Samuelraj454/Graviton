@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Graviton - Anti-Gravity Explorer</title>
     <meta name="description"
         content="A futuristic anti-gravity sci-fi adventure. Flip gravity in 4 directions, dash, use magnetic boots and escape the station.">
@@ -12,8 +13,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap"
         rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-DsmWA_e3.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-bnqG3Ujk.css">
+  <script type="module" crossorigin src="/assets/index-DIE1Id_h.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-JsgFQrGL.css">
 </head>
 
 <body>
@@ -25,22 +26,109 @@
             <div id="start-screen" class="screen">
                 <h1 class="logo">GRAVITON</h1>
                 <p class="subtitle">ESCAPE THE SINGULARITY</p>
-                <div class="instructions">
-                    <div class="key-hint"><span>W A S D</span>Move</div>
-                    <div class="key-hint"><span>Arrows</span>Gravity Dir</div>
-                    <div class="key-hint"><span>Space</span>Jump</div>
-                    <div class="key-hint"><span>Z</span>Dash</div>
-                    <div class="key-hint"><span>M</span>Mag‑Boots</div>
-                    <div class="key-hint"><span>Shift</span>Slow‑Mo</div>
+
+                <div id="user-display" class="hidden">WELCOME, <span id="display-name"></span></div>
+
+                <div class="menu-buttons" style="display:flex; flex-direction:column; gap:0.5rem; align-items:center;">
+                    <button id="start-btn" class="neon-btn">INITIALIZE MISSION</button>
+                    <button id="resume-btn" class="neon-btn hidden"
+                        style="border-color:var(--secondary);color:var(--secondary);">RESUME MISSION</button>
+                    <button id="level-select-btn" class="neon-btn"
+                        style="border-color:var(--primary);color:var(--primary);">LEVEL SELECT</button>
+                    <button id="how-to-play-btn" class="neon-btn"
+                        style="border-color:var(--primary);color:var(--primary);">HOW TO PLAY</button>
+                    <button id="credits-btn" class="neon-btn"
+                        style="border-color:var(--primary);color:var(--primary);">CREDITS</button>
+                    <button id="auth-btn" class="neon-btn">LOGIN / REGISTER</button>
+                    <button id="settings-btn" class="neon-btn"
+                        style="border-color:var(--accent);color:var(--accent);">SETTINGS</button>
+                    <button id="leaderboard-btn" class="neon-btn"
+                        style="font-size:0.75rem;padding:0.55rem 1.5rem;margin-top:0.4rem;border-color:var(--secondary);color:var(--secondary);">NEURAL
+                        UPLINK — LEADERBOARD</button>
                 </div>
-                <button id="start-btn" class="neon-btn">INITIALIZE MISSION</button>
-                <button id="resume-btn" class="neon-btn hidden"
-                    style="border-color:var(--secondary);color:var(--secondary);">RESUME MISSION</button>
-                <button id="settings-btn" class="neon-btn"
-                    style="border-color:var(--accent);color:var(--accent);">SETTINGS</button>
-                <button id="leaderboard-btn" class="neon-btn"
-                    style="font-size:0.75rem;padding:0.55rem 1.5rem;margin-top:0.4rem;border-color:var(--secondary);color:var(--secondary);">NEURAL
-                    UPLINK — LEADERBOARD</button>
+            </div>
+
+            <!-- ── How To Play Screen ─────────────────────── -->
+            <div id="how-to-play-screen" class="screen hidden">
+                <h2 class="title">▶ NEURAL TRAINING</h2>
+                <div class="how-to-grid"
+                    style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; max-width: 600px; margin-bottom: 2rem;">
+                    <div class="how-to-item">
+                        <span style="color:var(--primary); font-weight:bold;">WASD</span>
+                        <p>Move Operative</p>
+                    </div>
+                    <div class="how-to-item">
+                        <span style="color:var(--primary); font-weight:bold;">ARROWS</span>
+                        <p>Flip Gravity</p>
+                    </div>
+                    <div class="how-to-item">
+                        <span style="color:var(--primary); font-weight:bold;">SPACE / W</span>
+                        <p>Jump / Thrust</p>
+                    </div>
+                    <div class="how-to-item">
+                        <span style="color:var(--secondary); font-weight:bold;">Z / DASH</span>
+                        <p>Kinetic Dash</p>
+                    </div>
+                    <div class="how-to-item">
+                        <span style="color:var(--accent); font-weight:bold;">M / MAG</span>
+                        <p>Magnetic Boots</p>
+                    </div>
+                    <div class="how-to-item">
+                        <span style="color:var(--danger); font-weight:bold;">SHIFT / BURST</span>
+                        <p>Neural Burst (Slows Time)</p>
+                    </div>
+                </div>
+                <p
+                    style="font-size: 0.8rem; color: #fff; opacity:0.7; max-width: 500px; text-align: center; margin-bottom: 2rem;">
+                    Collect ENERGY CORES to fuel your Neural Link. Reach the Blue Singularity Portals to advance
+                    sectors.
+                </p>
+                <button id="how-to-back-btn" class="neon-btn"
+                    style="border-color:var(--primary);color:var(--primary);">BACK</button>
+            </div>
+
+            <!-- ── Level Select Screen ────────────────────── -->
+            <div id="level-select-screen" class="screen hidden">
+                <h2 class="title" style="margin-bottom:0.5rem;">▶ SECTOR SELECT</h2>
+                <div class="world-tabs" style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+                    <button class="badge active" onclick="window.game.ui.filterLevels('w1')">W1: TUTORIAL</button>
+                    <button class="badge" onclick="window.game.ui.filterLevels('w2')">W2: MOTION</button>
+                    <button class="badge" onclick="window.game.ui.filterLevels('w3')">W3: HAZARDS</button>
+                    <button class="badge" onclick="window.game.ui.filterLevels('w4')">W4: PUZZLES</button>
+                    <button class="badge" onclick="window.game.ui.filterLevels('w5')">W5: CHAOS</button>
+                </div>
+                <div id="level-grid" class="level-grid"
+                    style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; max-height: 400px; overflow-y: auto; padding: 1.5rem; scrollbar-width: thin;">
+                    <!-- Levels will be injected here -->
+                </div>
+                <button id="level-back-btn" class="neon-btn"
+                    style="border-color:var(--primary);color:var(--primary);margin-top:1rem;">BACK</button>
+            </div>
+
+            <!-- ── Credits Screen ────────────────────────── -->
+            <div id="credits-screen" class="screen hidden">
+                <h2 class="title">▶ PROJECT: GRAVITON</h2>
+                <div
+                    style="text-align: center; color: var(--text); font-family: var(--font-main); display: flex; flex-direction: column; gap: 1rem;">
+                    <p>CORE ENGINE: <span style="color:var(--primary);">ANTIGRAVITY AI</span></p>
+                    <p>VISUAL DESIGN: <span style="color:var(--secondary);">NEURAL SYNTH</span></p>
+                    <p>AUDIO LANDSCAPES: <span style="color:var(--accent);">CYBERPHONICS</span></p>
+                    <p style="margin-top: 2rem; opacity: 0.6; font-size: 0.8rem;">V1.2.0 - SINGULARITY EDITION</p>
+                </div>
+                <button id="credits-back-btn" class="neon-btn"
+                    style="border-color:var(--primary);color:var(--primary);margin-top:2rem;">BACK</button>
+            </div>
+
+            <!-- ── Pause Screen ───────────────────────────── -->
+            <div id="pause-screen" class="screen hidden">
+                <h2 class="title" style="color:var(--secondary);">▶ MISSION PAUSED</h2>
+                <div class="menu-buttons" style="display:flex; flex-direction:column; gap:1rem; align-items:center;">
+                    <button id="pause-resume-btn" class="neon-btn">RESUME UPLINK</button>
+                    <button id="pause-restart-btn" class="neon-btn"
+                        style="border-color:var(--danger);color:var(--danger);">REBOOT SECTOR</button>
+                    <button id="pause-home-btn" class="neon-btn"
+                        style="border-color:var(--primary);color:var(--primary);">ABORT MISSION</button>
+                </div>
             </div>
 
             <!-- ── Settings Screen ────────────────────────── -->
@@ -55,6 +143,9 @@
                     </div>
                     <button id="mute-btn" class="neon-btn" style="font-size:0.7rem;padding:0.4rem 1rem;">MUTE
                         AUDIO</button>
+                    <button id="fullscreen-btn" class="neon-btn"
+                        style="font-size:0.7rem;padding:0.4rem 1rem; border-color:var(--primary); color:var(--primary); margin-top:0.5rem;">ENTER
+                        FULLSCREEN</button>
                 </div>
 
                 <div class="settings-section">
@@ -77,7 +168,34 @@
             <!-- ── In-Game HUD ──────────────────────────── -->
             <div id="game-ui" class="hidden">
                 <div class="top-bar">
-                    <div class="level-info">SECTOR <span id="level-num">01</span> / <span id="total-levels">500</span>
+                    <div class="level-info">
+                        SECTOR <span id="level-num">01</span>
+                    </div>
+
+                    <div class="stats-group" style="display:flex; gap:1.5rem; align-items:center;">
+                        <div class="stat-item" style="display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:0.5rem; color:var(--primary);">LIVES</span>
+                            <span id="lives-count" style="font-size:1.2rem; color:#fff;">3</span>
+                        </div>
+                        <div class="stat-item" style="display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:0.5rem; color:var(--secondary);">DATA</span>
+                            <span id="cores-count" style="font-size:1.2rem; color:#fff;">0</span>
+                        </div>
+                        <div class="stat-item" style="display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:0.5rem; color:#ffcc00;">COINS</span>
+                            <span id="coins-count" style="font-size:1.2rem; color:#fff;">0</span>
+                        </div>
+                        <div class="stat-item" style="display:flex; flex-direction:column; align-items:center;">
+                            <span style="font-size:0.5rem; color:var(--accent);">TIME</span>
+                            <span id="level-timer" style="font-size:1.2rem; color:#fff;">00:00</span>
+                        </div>
+                    </div>
+
+                    <div class="neural-container">
+                        <div class="neural-label">NEURAL LINK</div>
+                        <div class="neural-bar-bg">
+                            <div id="neural-fill"></div>
+                        </div>
                     </div>
 
                     <div class="status-badges">
@@ -88,17 +206,6 @@
                         <div class="badge" id="badge-magnetic">MAG</div>
                         <div class="badge dash" id="badge-dash">DASH</div>
                         <div class="badge" id="badge-burst">BURST</div>
-                    </div>
-
-                    <div class="neural-container">
-                        <div class="neural-label">NEURAL LINK</div>
-                        <div class="neural-bar-bg">
-                            <div id="neural-fill"></div>
-                        </div>
-                    </div>
-
-                    <div class="score-display">
-                        CORES <span id="cores-count">0</span>
                     </div>
 
                     <button id="home-btn" class="icon-btn" title="Exit to Home"
@@ -127,8 +234,12 @@
             <div id="death-screen" class="screen hidden">
                 <h2 class="fail-msg">SYSTEM FAILURE</h2>
                 <div class="sector-stats">NEURAL LINK SEVERED</div>
-                <button id="retry-btn" class="neon-btn" style="border-color:var(--danger);color:var(--danger);">REBOOT
-                    SYSTEM</button>
+                <div class="menu-buttons" style="display:flex; flex-direction:column; gap:1rem; align-items:center;">
+                    <button id="retry-btn" class="neon-btn"
+                        style="border-color:var(--danger);color:var(--danger);">REBOOT SYSTEM</button>
+                    <button id="death-home-btn" class="neon-btn"
+                        style="border-color:var(--primary);color:var(--primary);">ABORT MISSION</button>
+                </div>
             </div>
 
             <!-- ── Victory Screen ──────────────────────── -->
@@ -144,6 +255,52 @@
                 <div id="leaderboard-list"></div>
                 <button id="close-leaderboard-btn" class="neon-btn"
                     style="border-color:var(--secondary);color:var(--secondary);">DISCONNECT</button>
+            </div>
+
+            <!-- ── Mobile Controls Overlay ────────────────── -->
+            <div id="mobile-controls" class="hidden">
+                <div class="control-group d-pad">
+                    <button id="v-up" class="v-btn up-btn">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M7 14l5-5 5 5H7z" />
+                        </svg>
+                    </button>
+                    <div class="mid-row">
+                        <button id="v-left" class="v-btn left-btn">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M14 7l-5 5 5 5V7z" />
+                            </svg>
+                        </button>
+                        <button id="v-right" class="v-btn right-btn">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M10 17l5-5-5-5v10z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <button id="v-down" class="v-btn down-btn">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M7 10l5 5 5-5H7z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="control-group movement-pad">
+                    <button id="v-a" class="v-btn action-btn">A</button>
+                    <button id="v-d" class="v-btn action-btn">D</button>
+                    <button id="v-w" class="v-btn action-btn">W</button>
+                    <button id="v-s" class="v-btn action-btn">S</button>
+                </div>
+
+                <div class="control-group action-buttons">
+                    <div class="action-row">
+                        <button id="v-dash" class="v-btn action-btn secondary">DASH</button>
+                        <button id="v-jump" class="v-btn action-btn primary large">JUMP</button>
+                    </div>
+                    <div class="action-row">
+                        <button id="v-boots" class="v-btn action-btn accent">MAG</button>
+                        <button id="v-slow" class="v-btn action-btn danger">BURST</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
